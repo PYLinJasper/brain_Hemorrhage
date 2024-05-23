@@ -2,6 +2,7 @@
 
 import os
 import cv2
+import numpy as np
 
 def init_contour_finding(img_dir, epidural, intraparenchymal,
            subarachnoid, intraventricular, multi, subdural, normal):
@@ -74,8 +75,8 @@ def find_contour(gray_image, img_name):
 
         # First contour or not?
         if brightest_contour is not None:
-            size_now = count_size(gray_img, brightest_contour)
-            size_new = count_size(gray_img, contour)
+            size_now = count_size(gray_image, brightest_contour)
+            size_new = count_size(gray_image, contour)
 
             if (size_new > size_now):
                 max_brightness = average_brightness

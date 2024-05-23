@@ -5,7 +5,7 @@ import pandas as pd
 
 
 def init_image_stacking(csv, img_info_dir, epidural, intraparenchymal,
-           subarachnoid, intraventricular, multi, subdural_1, subdural_2):
+            subarachnoid, intraventricular, multi, subdural, subdural_1, subdural_2):
     
     # img info from each class
     file_epidural = pd.read_csv(img_info_dir + epidural + csv)
@@ -18,10 +18,9 @@ def init_image_stacking(csv, img_info_dir, epidural, intraparenchymal,
     file_subdural = pd.concat([file_subdural_1, file_subdural_2])
 
     file_list = [file_epidural, file_intraparenchymal, file_subarachnoid,
-            file_intraventricular, file_multi, file_subdural]
-
+                file_intraventricular, file_multi, file_subdural]
     file_list_fld = [epidural, intraparenchymal, subarachnoid, 
-                 intraventricular, multi, subdural]
+                intraventricular, multi, subdural]
     return file_list, file_list_fld
 
 

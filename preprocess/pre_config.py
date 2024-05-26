@@ -1,6 +1,7 @@
 '''Constant'''
 
 import os
+import argparse
 
 epidural = 'epidural'
 intraparenchymal = 'intraparenchymal'
@@ -15,10 +16,6 @@ normal = 'normal'
 csv = '.csv'
 jpg = '.jpg'
 
-# data root path
-data_dir = './dcms/'
-img_info_dir = data_dir + 'segmentation/'
-img_dir = data_dir + 'renders/'
 
 def create_folder(path):
     '''create folder'''
@@ -28,3 +25,24 @@ def create_folder(path):
         pass
     
     return
+
+def get_args():
+    """
+    Just get the command line options using argparse
+    @return: Instance of argparse arguments
+    """
+
+    parser_description = 'Root path for the dcms data images'
+    parser = argparse.ArgumentParser(description=parser_description)
+
+    parser.add_argument('-r',
+                        '--root',
+                        # use args.column_to_parse
+                        dest='root_path',
+                        # accepted input type
+                        type=str,
+                        help='root path fro images',
+                        # defult value options
+                        default='./dcms/')
+
+    return parser.parse_args()

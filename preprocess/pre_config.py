@@ -41,7 +41,7 @@ def get_args():
                         dest='root_path',
                         # accepted input type
                         type=str,
-                        help='root path fro images',
+                        help='root path for images',
                         # defult value options
                         default='./dcms/')
 

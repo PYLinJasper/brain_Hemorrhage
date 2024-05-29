@@ -1,7 +1,14 @@
 import os
+import cv2
 import ast
 import argparse
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+import tensorflow as tf
 from random import sample
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 epidural = 'epidural'
 intraparenchymal = 'intraparenchymal'
@@ -12,6 +19,7 @@ subdural = 'subdural'
 subdural_1 = 'subdural_1'
 subdural_2 = 'subdural_2'
 normal = 'normal'
+label_file = 'labels'
 
 csv = '.csv'
 jpg = '.jpg'
@@ -34,7 +42,7 @@ def get_args():
                         help='root path for images',
                         # defult value options
                         default='./dcms')
-    
+
     parser.add_argument('-s',
                         '--size',
                         # use args.column_to_parse
@@ -56,7 +64,7 @@ def show(img, fld, mask, dia_gray_img, img_name):
     plt.subplot(1, 3, 2)
     plt.imshow(mask, cmap=plt.cm.bone)
     plt.title('Mask')
-        
+    
     plt.subplot(1, 3, 3)
     plt.imshow(dia_gray_img, cmap=plt.cm.bone)
     plt.title(img_name)
@@ -197,3 +205,299 @@ def one_hot(img_name, img_class, label_pd):
     onehot[index] = (onehot[index] + 1 ) % 2
     
     return onehot
+
+def count_per(multi_class, img_label, y_img_sftm):
+    '''Calculate porpotion'''
+    if multi_class:
+        model_type = 'sftm'
+    else:
+        model_type = 'sgmd'
+
+    y_img_df = pd.DataFrame(y_img_sftm)
+
+    y_img_df.columns = img_label
+    class_count = [[] for _ in range(len(img_label))]
+    class_num = 0
+
+    for col in y_img_df:
+        # class: 1
+        class_count[class_num] = y_img_df[col].value_counts()[1]
+        class_num += 1
+
+    class_count = np.array(class_count)
+
+    name = []
+    type_count = []
+    percent_count = []
+
+    for a, b in zip(img_label, class_count):
+        name.append(a)
+        type_count.append(b)
+        percent_count.append(str(round(b/class_count.sum()*100))+'%')
+
+    df = pd.DataFrame()
+    df['Name'] = name
+    df[model_type] = type_count
+    df['%'] = percent_count
+    df = df.set_index('Name')
+
+    return df
+
+def data_generate(rpath, img_size, multi_class):
+    img_root_dir = rpath + '/' + '02_Contour/'
+    img_info_dir = rpath + '/' + 'segmentation/'
+
+    file_list, file_list_fld = init_data_input(img_root_dir, epidural, intraparenchymal,
+            subarachnoid, intraventricular, multi, subdural, normal)
+    
+    img_label = file_list_fld.copy()
+    img_label.remove('multi')
+    img_class = img_label.copy()
+    img_class = list(map(lambda x: x.replace('normal', 'any'), img_class))
+
+    label_pd = pd.read_csv(img_info_dir + label_file + csv, index_col='Image')
+
+    # multi_class = False
+
+    if multi_class:
+        # img_data_sftm = []
+        grey_img_data_sftm = []
+        label_img_data_sftm = []
+        # mask_sftm = []
+        y_img_sftm = []
+    
+    else:
+        # img_data_sgmd = []
+        grey_img_data_sgmd = []
+        label_img_data_sgmd = []
+        # mask_sgmd = []
+        y_img_sgmd = []
+
+
+
+    for img_names, fld in zip(file_list, file_list_fld):
+
+        if fld == 'intraventricular':
+            file = pd.read_csv(img_info_dir + fld + csv)
+            file = file[['Origin', 'ROI', 'All Annotations']]
+
+        elif fld != 'normal':
+            # not intraventricular and normal
+            if fld == 'subdural':
+                file1 = pd.read_csv(img_info_dir + fld + '_1' + csv)
+                file2 = pd.read_csv(img_info_dir + fld + '_2' + csv)
+                file = pd.concat([file1, file2])
+            else:
+                file = pd.read_csv(img_info_dir + fld + csv)
+                
+            file = file[['Origin', 'Majority Label', 'Correct Label', 'All Labels']]
+
+        img_dir = img_root_dir + fld + '/'
+    
+        for img_name in tqdm(img_names, desc=f"{fld}", unit="image"):
+            # read image
+            img_path = img_dir + img_name
+            img = cv2.imread(img_path)
+            # grey_img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        
+            if fld == 'normal':
+                mask = np.zeros_like(img, dtype=np.uint8)
+                # normalize
+                img, gray_img, dia_img, mask = nor_res(img, img, img_size, mask)
+            
+
+                y_one_hot = one_hot(img_name, img_class, label_pd)
+
+                if multi_class:
+                    # img_data_sftm.append(img)
+                    grey_img_data_sftm.append(gray_img)
+                    label_img_data_sftm.append(dia_img)
+                    # mask_sftm.append(mask)
+                    y_img_sftm.append(y_one_hot)
+
+                else:
+                    # img_data_sgmd.append(img)
+                    grey_img_data_sgmd.append(gray_img)
+                    label_img_data_sgmd.append(dia_img)
+                    # mask_sgmd.append(mask)
+                    y_img_sgmd.append(y_one_hot)
+
+            else:
+
+                labels = file[file.Origin == img_name]
+    
+                if fld == 'intraventricular':
+                    iter = zip(labels['ROI'], labels['All Annotations'], labels['Origin'])
+        
+                else:
+                    iter = zip(labels['Correct Label'], labels['Majority Label'], labels['All Labels'])
+        
+                # print(img_name)
+                # find the label
+                all_areas_coordinates = []
+                for cl, ml, al in iter:
+        
+                    # have correct label
+                    if isinstance(cl, str):
+                        areas_coordinates = collect_areas(cl, 0)
+                
+                        if len(areas_coordinates) == 0:
+                            areas_coordinates = label_proven(ml, al)
+
+                    # have majority label
+                    elif isinstance(ml, str):
+                        # find coordinates
+                        areas_coordinates = label_proven(ml, al)
+
+                    all_areas_coordinates += areas_coordinates
+
+                if len(all_areas_coordinates) > 0:
+                    diagnose, mask = mask_diagnose(all_areas_coordinates, img)
+                    # Normalize and resize
+                    img, gray_img, dia_img, mask = nor_res(img, diagnose, img_size, mask)
+
+                    # store training data
+                    y_one_hot = one_hot(img_name, img_class, label_pd)
+            
+                    if multi_class:
+                        if fld != 'multi':
+                            # img_data_sftm.append(img)
+                            grey_img_data_sftm.append(gray_img)
+                            label_img_data_sftm.append(dia_img)
+                            # mask_sftm.append(mask)
+                            y_img_sftm.append(y_one_hot)
+
+                    else:
+                        # img_data_sgmd.append(img)
+                        grey_img_data_sgmd.append(gray_img)
+                        label_img_data_sgmd.append(dia_img)
+                        # mask_sgmd.append(mask)
+                        y_img_sgmd.append(y_one_hot)
+        
+                # break
+        # break
+
+    if multi_class:
+        # img_data_sftm = np.array(img_data_sftm)
+        # grey_img_data_sftm = np.array(img_data_sftm)
+        grey_img_data_sftm = np.array(grey_img_data_sftm)
+        label_img_data_sftm = np.array(label_img_data_sftm)
+        # mask_sftm = np.array(mask_sftm)
+        y_img_sftm = np.array(y_img_sftm)
+
+    else:
+        # img_data_sgmd = np.array(img_data_sgmd)
+        # grey_img_data_sgmd = np.array(img_data_sgmd)
+        grey_img_data_sgmd = np.array(grey_img_data_sgmd)
+        label_img_data_sgmd = np.array(label_img_data_sgmd)
+        # mask_sgmd = np.array(mask_sgmd)
+        y_img_sgmd = np.array(y_img_sgmd)
+
+    # summary of pretraining data
+    print('\nType Accumulation for input data')
+    if multi_class:
+        print(count_per(multi_class, img_label, y_img_sftm))
+    else:
+        print(count_per(multi_class, img_label, y_img_sgmd))
+    
+
+    '''Image Stacking '''
+    # stack together
+    if multi_class:
+        gray_label_data = np.stack([grey_img_data_sftm, label_img_data_sftm], axis=1)
+        y_img = y_img_sftm
+
+    else:
+        gray_label_data = np.stack([grey_img_data_sgmd, label_img_data_sgmd], axis=1)
+        y_img = y_img_sgmd
+    
+    print('\nData Shape')
+    gray_label_data.shape
+
+    '''Train Test Split'''
+    # split the data: test
+    x_train_raw, x_test, y_train_raw, y_test = train_test_split(gray_label_data, y_img, test_size=0.2, random_state=10)
+
+    # split the data: train, val
+    x_train, x_val, y_train, y_val = train_test_split(x_train_raw, y_train_raw, test_size=0.2, random_state=10)
+
+    X_train = x_train[:, 0, :, :]
+    X_train_label = x_train[:, 1, :, :]
+    X_test = x_test[:, 0, :, :]
+    X_test_label = x_test[:, 1, :, :]
+    X_val = x_val[:, 0, :, :]
+    X_val_label = x_val[:, 1, :, :]
+
+    # dataset data count
+    train_cnt = X_train.shape[0]
+    test_cnt = X_test.shape[0]
+    val_cnt = X_val.shape[0]
+
+    print(f'\nTrain data: {X_train.shape}')
+    print(f'Test data: {X_test.shape}')
+    print(f'Val data: {X_val.shape}')
+
+    print('\n__________________________________________')
+    print('\nType Accumulation for raw training data')
+    df = count_per(multi_class, img_label, y_train)
+    print(df)
+
+    '''Image Augmentation'''
+    datagen = ImageDataGenerator(
+        rotation_range=40,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
+        shear_range=0.2,
+        zoom_range=0.2,
+        horizontal_flip=True,
+        fill_mode='nearest'
+    )
+
+    # Create empty lists to store augmented data and labels
+    augmented_data = []
+    augmented_labels = []
+
+    num_data = df.max().values[0]
+
+    # Iterate over each label
+    for label_idx in range(len(img_label)):  # Assuming num_classes is the number of classes
+
+        # Get indices of samples with the current label
+        label_indices = np.where(y_train[:, label_idx] == 1)[0]
+
+        # Calculate the number of samples needed for augmentation
+        samples_needed = num_data - len(label_indices)
+
+        # Randomly select samples from the original data with the current label
+        selected_samples = np.random.choice(label_indices, samples_needed, replace=True)
+
+        # Augment the selected samples
+        for sample_idx in selected_samples:
+            x = X_train[sample_idx]
+            y = y_train[sample_idx]
+
+            # Reshape the image to (1, height, width, channels) as flow requires a 4D array
+            x = x.reshape((1,) + x.shape)
+
+            # Generate augmented samples
+            for batch, _ in datagen.flow(x, np.zeros(1), batch_size=1):  # Use np.zeros(1) as a placeholder for y
+                augmented_data.append(batch[0])
+                augmented_labels.append(y)
+
+                # Break the loop to avoid infinite augmentation
+                if len(augmented_data) >= samples_needed:
+                    break
+
+    # Convert the lists to NumPy arrays
+    augmented_data = np.array(augmented_data)
+    augmented_labels = np.array(augmented_labels)
+
+    # Concatenate the augmented data with the original data
+    X_train_agmt = np.concatenate((X_train, augmented_data), axis=0)
+    y_train_agmt = np.concatenate((y_train, augmented_labels), axis=0)
+
+    print('\n__________________________________________')
+    print('\nType Accumulation for Final training data')
+    print(count_per(multi_class, img_label, y_train_agmt))
+
+    # print(img_size)

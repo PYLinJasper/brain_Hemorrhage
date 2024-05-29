@@ -5,7 +5,8 @@ import cv2
 import numpy as np
 
 def init_contour_finding(img_dir, epidural, intraparenchymal,
-           subarachnoid, intraventricular, multi, subdural, normal):
+            subarachnoid, intraventricular, multi, subdural, normal):
+    '''contour finding'''
 
     # img info from each class
     file_epidural = [a for a in os.listdir(img_dir + epidural) if a != '.DS_Store']
@@ -19,11 +20,12 @@ def init_contour_finding(img_dir, epidural, intraparenchymal,
     file_list = [file_epidural, file_intraparenchymal, file_subarachnoid,
             file_intraventricular, file_multi, file_subdural, file_normal]
 
-    file_list_fld = [epidural, intraparenchymal, subarachnoid, 
+    file_list_fld = [epidural, intraparenchymal, subarachnoid,
                  intraventricular, multi, subdural, normal]
     return file_list, file_list_fld
 
 def calculate_gray_percentage(gray_image, threshold=128):
+    '''calculate grey percentage'''
     gray_image = np.uint8(gray_image)
     # Threshold the grayscale image
     _, binary_mask = cv2.threshold(gray_image, threshold, 255, cv2.THRESH_BINARY)
@@ -40,19 +42,21 @@ def calculate_gray_percentage(gray_image, threshold=128):
     return gray_percentage
 
 def count_size(gray_img, contour):
+    '''calculate the size of the contour'''
     # outside contour to be black
-    mask = np.zeros_like(gray_img, dtype=np.uint8) 
+    mask = np.zeros_like(gray_img, dtype=np.uint8)
     cv2.drawContours(mask, [contour], 0, 255, thickness=cv2.FILLED)
     result = cv2.bitwise_and(gray_img, gray_img, mask=mask)
 
     return np.count_nonzero(result!=0)
 
 def find_contour(gray_image, img_name):
+    '''find the contour'''
     # Convert normalized grayscale image to uint8
     gray_image = gray_image.astype(np.uint8)
-    
+
     threshold = 55
-    
+
     # Threshold the grayscale image
     _, thresh = cv2.threshold(gray_image, threshold, 255, cv2.THRESH_BINARY)
 
@@ -78,7 +82,7 @@ def find_contour(gray_image, img_name):
             size_now = count_size(gray_image, brightest_contour)
             size_new = count_size(gray_image, contour)
 
-            if (size_new > size_now):
+            if size_new > size_now:
                 max_brightness = average_brightness
                 brightest_contour = contour
 

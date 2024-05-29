@@ -7,22 +7,10 @@ import pandas as pd
 from tqdm import tqdm
 import tensorflow as tf
 from random import sample
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-epidural = 'epidural'
-intraparenchymal = 'intraparenchymal'
-subarachnoid = 'subarachnoid'
-intraventricular = 'intraventricular'
-multi = 'multi'
-subdural = 'subdural'
-subdural_1 = 'subdural_1'
-subdural_2 = 'subdural_2'
-normal = 'normal'
-label_file = 'labels'
-
-csv = '.csv'
-jpg = '.jpg'
 
 def get_args():
     """
@@ -64,7 +52,7 @@ def show(img, fld, mask, dia_gray_img, img_name):
     plt.subplot(1, 3, 2)
     plt.imshow(mask, cmap=plt.cm.bone)
     plt.title('Mask')
-    
+
     plt.subplot(1, 3, 3)
     plt.imshow(dia_gray_img, cmap=plt.cm.bone)
     plt.title(img_name)
@@ -85,7 +73,7 @@ def init_data_input(img_dir, epidural, intraparenchymal,
     file_list = [file_epidural, file_intraparenchymal, file_subarachnoid,
             file_intraventricular, file_multi, file_subdural, file_normal]
 
-    file_list_fld = [epidural, intraparenchymal, subarachnoid, 
+    file_list_fld = [epidural, intraparenchymal, subarachnoid,
                  intraventricular, multi, subdural, normal]
     return file_list, file_list_fld
 
@@ -109,7 +97,7 @@ def resolve(label):
     nested_list = ast.literal_eval(label)
     areas = np.array(nested_list, dtype=object)[0]
     areas = areas.replace('[]', '')
-    
+
     return areas
 
 def collect_areas(label, flag):
@@ -121,14 +109,14 @@ def collect_areas(label, flag):
             return False
 
     nested_list = ast.literal_eval(label)
-    areas = np.array(nested_list, dtype=object)        
+    areas = np.array(nested_list, dtype=object)
 
     if len(areas) == 0:
         return False
 
     # print(areas)
     areas_coordinates = []
-    if areas.ndim > 1: 
+    if areas.ndim > 1:
         for area in areas:
             areas_coordinates = collect_area_coor(areas_coordinates, area)
     else:
@@ -155,7 +143,8 @@ def mask_diagnose(areas_coordinates, diagnose):
 
             # Draw the filled polygon on the black background
             cv2.drawContours(mask, [vertices_scaled], 0, (255, 255, 255), thickness=cv2.FILLED)
-            cv2.polylines(background, [vertices_scaled], isClosed=True, color=(255, 255, 255), thickness=3)
+            cv2.polylines(background, [vertices_scaled], isClosed=True,
+                                        color=(255, 255, 255), thickness=3)
 
     # Invert the black and white colors in the background
     background = cv2.bitwise_not(background)
@@ -170,7 +159,7 @@ def label_proven(ml, al):
     # no cl and ml -> use all labels
     if areas_coordinates == False:
         areas_coordinates = collect_areas(al, 1)
-                    
+
         if areas_coordinates == False:
             areas_coordinates = []
 
@@ -186,13 +175,13 @@ def nor_res(img, diagnose, img_size, mask):
     # turn 3-cahnnel img into 1-channel gray scale img to reduce size
     dia_gray_img = cv2.cvtColor(dia_img, cv2.COLOR_BGR2GRAY)
     dia_gray_img = dia_gray_img.reshape(img_size, img_size, 1)
-    
+
     mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
     mask = mask.reshape(img_size, img_size, 1)
-    
+
     gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray_img = gray_img.reshape(img_size, img_size, 1)
-    
+
     # return img, gray_img, dia_img, mask
     return img, gray_img, dia_gray_img, mask
 
@@ -203,7 +192,7 @@ def one_hot(img_name, img_class, label_pd):
     # toggle any for nomal
     index = img_class.index('any')
     onehot[index] = (onehot[index] + 1 ) % 2
-    
+
     return onehot
 
 def count_per(multi_class, img_label, y_img_sftm):
@@ -244,12 +233,28 @@ def count_per(multi_class, img_label, y_img_sftm):
     return df
 
 def data_generate(rpath, img_size, multi_class):
+    '''called by main to generate training data from raw'''
+    # constant
+    epidural = 'epidural'
+    intraparenchymal = 'intraparenchymal'
+    subarachnoid = 'subarachnoid'
+    intraventricular = 'intraventricular'
+    multi = 'multi'
+    subdural = 'subdural'
+    subdural_1 = 'subdural_1'
+    subdural_2 = 'subdural_2'
+    normal = 'normal'
+    label_file = 'labels'
+    csv = '.csv'
+    jpg = '.jpg'
+
+
     img_root_dir = rpath + '/' + '02_Contour/'
     img_info_dir = rpath + '/' + 'segmentation/'
 
     file_list, file_list_fld = init_data_input(img_root_dir, epidural, intraparenchymal,
             subarachnoid, intraventricular, multi, subdural, normal)
-    
+
     img_label = file_list_fld.copy()
     img_label.remove('multi')
     img_class = img_label.copy()
@@ -265,14 +270,13 @@ def data_generate(rpath, img_size, multi_class):
         label_img_data_sftm = []
         # mask_sftm = []
         y_img_sftm = []
-    
+
     else:
         # img_data_sgmd = []
         grey_img_data_sgmd = []
         label_img_data_sgmd = []
         # mask_sgmd = []
         y_img_sgmd = []
-
 
 
     for img_names, fld in zip(file_list, file_list_fld):
@@ -289,22 +293,22 @@ def data_generate(rpath, img_size, multi_class):
                 file = pd.concat([file1, file2])
             else:
                 file = pd.read_csv(img_info_dir + fld + csv)
-                
+
             file = file[['Origin', 'Majority Label', 'Correct Label', 'All Labels']]
 
         img_dir = img_root_dir + fld + '/'
-    
+
         for img_name in tqdm(img_names, desc=f"{fld}", unit="image"):
             # read image
             img_path = img_dir + img_name
             img = cv2.imread(img_path)
             # grey_img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-        
+
             if fld == 'normal':
                 mask = np.zeros_like(img, dtype=np.uint8)
                 # normalize
                 img, gray_img, dia_img, mask = nor_res(img, img, img_size, mask)
-            
+
 
                 y_one_hot = one_hot(img_name, img_class, label_pd)
 
@@ -325,22 +329,23 @@ def data_generate(rpath, img_size, multi_class):
             else:
 
                 labels = file[file.Origin == img_name]
-    
+
                 if fld == 'intraventricular':
                     iter = zip(labels['ROI'], labels['All Annotations'], labels['Origin'])
-        
+
                 else:
-                    iter = zip(labels['Correct Label'], labels['Majority Label'], labels['All Labels'])
-        
+                    iter = zip(labels['Correct Label'], labels['Majority Label'],
+                                    labels['All Labels'])
+
                 # print(img_name)
                 # find the label
                 all_areas_coordinates = []
                 for cl, ml, al in iter:
-        
+
                     # have correct label
                     if isinstance(cl, str):
                         areas_coordinates = collect_areas(cl, 0)
-                
+
                         if len(areas_coordinates) == 0:
                             areas_coordinates = label_proven(ml, al)
 
@@ -358,7 +363,7 @@ def data_generate(rpath, img_size, multi_class):
 
                     # store training data
                     y_one_hot = one_hot(img_name, img_class, label_pd)
-            
+
                     if multi_class:
                         if fld != 'multi':
                             # img_data_sftm.append(img)
@@ -373,7 +378,7 @@ def data_generate(rpath, img_size, multi_class):
                         label_img_data_sgmd.append(dia_img)
                         # mask_sgmd.append(mask)
                         y_img_sgmd.append(y_one_hot)
-        
+
                 # break
         # break
 
@@ -399,7 +404,7 @@ def data_generate(rpath, img_size, multi_class):
         print(count_per(multi_class, img_label, y_img_sftm))
     else:
         print(count_per(multi_class, img_label, y_img_sgmd))
-    
+
 
     '''Image Stacking '''
     # stack together
@@ -410,16 +415,18 @@ def data_generate(rpath, img_size, multi_class):
     else:
         gray_label_data = np.stack([grey_img_data_sgmd, label_img_data_sgmd], axis=1)
         y_img = y_img_sgmd
-    
+
     print('\nData Shape')
     gray_label_data.shape
 
     '''Train Test Split'''
     # split the data: test
-    x_train_raw, x_test, y_train_raw, y_test = train_test_split(gray_label_data, y_img, test_size=0.2, random_state=10)
+    x_train_raw, x_test, y_train_raw, y_test = train_test_split(gray_label_data, y_img,
+                                                        test_size=0.2, random_state=10)
 
     # split the data: train, val
-    x_train, x_val, y_train, y_val = train_test_split(x_train_raw, y_train_raw, test_size=0.2, random_state=10)
+    x_train, x_val, y_train, y_val = train_test_split(x_train_raw, y_train_raw,
+                                                        test_size=0.2, random_state=10)
 
     X_train = x_train[:, 0, :, :]
     X_train_label = x_train[:, 1, :, :]

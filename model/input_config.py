@@ -11,6 +11,14 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
+def create_folder(path):
+    '''create folder'''
+    try:
+        os.mkdir(path)
+    except FileExistsError:
+        pass
+    
+    return
 
 def get_args():
     """
@@ -40,6 +48,16 @@ def get_args():
                         help='training image size',
                         # defult value options
                         default=256)
+    
+    parser.add_argument('-mn',
+                        '--model',
+                        # use args.column_to_parse
+                        dest='model',
+                        # accepted input type
+                        type=str,
+                        help='model Name',
+                        # defult value options
+                        default='model')
 
     return parser.parse_args()
 
@@ -507,4 +525,4 @@ def data_generate(rpath, img_size, multi_class):
     print('\nType Accumulation for Final training data')
     print(count_per(multi_class, img_label, y_train_agmt))
 
-    # print(img_size)
+    return X_train_agmt, y_train_agmt, X_test, y_test, X_val, y_val, img_label

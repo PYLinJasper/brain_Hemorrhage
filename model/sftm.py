@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from sklearn.metrics import confusion_matrix, hamming_loss
 
-from input_config import data_generate, get_args
+from input_config import data_generate, get_args, create_folder
 
 # Function to create a replicated input tensor
 def replicate_channels(input_tensor):
@@ -192,6 +192,10 @@ def main(args):
     create_folder(weight_path)
     model_name = args.model + '.h5'
     model_path = weight_path + '/' + model_name
+
+    # train model
+    if args.pred:
+        train_model(img_size, img_label, x_train, y_train, x_val,y_val, model_path)
 
     # make prediction
     trained_model = load_model(model_path)

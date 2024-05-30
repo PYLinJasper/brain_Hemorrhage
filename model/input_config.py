@@ -58,6 +58,16 @@ def get_args():
                         help='model Name',
                         # defult value options
                         default='model')
+    
+    parser.add_argument('-p',
+                        '--pred',
+                        # use args.column_to_parse
+                        dest='pred',
+                        # accepted input type
+                        type=int,
+                        help='0: existing model, 1: train a new model',
+                        # defult value options
+                        default=1)
 
     return parser.parse_args()
 
